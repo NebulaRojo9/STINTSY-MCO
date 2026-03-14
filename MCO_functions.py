@@ -19,12 +19,12 @@ def compareChart(mode, n, cat, figwidth, figheight, urban_columns, rural_columns
 
     # add labels, title, and legend
     if mode=="T":
-        ax.set_xlabel("Average Monthly Expenses in Php", family="monospace", fontsize=14, fontweight="bold")
-        ax.set_ylabel("Expense", family="monospace", fontsize=14, fontweight="bold")
+        ax.set_xlabel("Average monthly expenses in Php", family="monospace", fontsize=14, fontweight="bold")
+        ax.set_ylabel("Expense category", family="monospace", fontsize=14, fontweight="bold")
 
     if mode=="N":
-        ax.set_xlabel("Average Monthly Income in Php", family="monospace", fontsize=14, fontweight="bold")
-        ax.set_ylabel("Income", family="monospace", fontsize=14, fontweight="bold")
+        ax.set_xlabel("Average monthly income in Php", family="monospace", fontsize=14, fontweight="bold")
+        ax.set_ylabel("Income category", family="monospace", fontsize=14, fontweight="bold")
     
     ax.invert_yaxis()
     ax.set_title(title, family="impact", fontsize=20)
