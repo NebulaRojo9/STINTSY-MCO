@@ -5,7 +5,7 @@ import math
 import pandas as pd
 
 
-def compareChart(n, cat, figwidth, figheight, urban_columns, rural_columns, title):
+def compareChart(mode, n, cat, figwidth, figheight, urban_columns, rural_columns, title):
     # bar profile
     y = np.arange(n) # label location of categories
     bar_height = 0.4 # the height of bars
@@ -18,8 +18,14 @@ def compareChart(n, cat, figwidth, figheight, urban_columns, rural_columns, titl
     rects2 = ax.barh(y + 0.2, rural_columns, height=bar_height, label="Rural", color="#30e0a8")
 
     # add labels, title, and legend
-    ax.set_xlabel("Average Monthly Expenses in Php", family="monospace", fontsize=14, fontweight="bold")
-    ax.set_ylabel("Expenses", family="monospace", fontsize=14, fontweight="bold")
+    if mode=="T":
+        ax.set_xlabel("Average Monthly Expenses in Php", family="monospace", fontsize=14, fontweight="bold")
+        ax.set_ylabel("Expense", family="monospace", fontsize=14, fontweight="bold")
+
+    if mode=="N":
+        ax.set_xlabel("Average Monthly Income in Php", family="monospace", fontsize=14, fontweight="bold")
+        ax.set_ylabel("Income", family="monospace", fontsize=14, fontweight="bold")
+    
     ax.invert_yaxis()
     ax.set_title(title, family="impact", fontsize=20)
     ax.set_yticks(y, cat)
