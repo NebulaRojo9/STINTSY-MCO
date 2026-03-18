@@ -10,7 +10,7 @@ import torch
 from torch import optim
 import torch.nn as nn
 
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, precision_score, recall_score, f1_score
 
 def compareChart(mode, n, cat, figwidth, figheight, urban_columns, rural_columns, title):
     # bar profile
@@ -110,6 +110,8 @@ def trainNetwork(network: NeuralNetwork, data_loader: DataLoader,
         else:
             previous_loss = loss.item()
             e += 1
+    
+    return losses
 
 def evaluateNetwork(model, X_val, y_val):
 
@@ -122,14 +124,19 @@ def evaluateNetwork(model, X_val, y_val):
         outputs, _ = model(X_val) 
         preds = torch.argmax(outputs, dim=1)
 
-    accuracy = accuracy_score(y_val, preds)
-    precision = precision_score(y_val, preds)
-    recall = recall_score(y_val, preds)
-    f1 = f1_score(y_val, preds)
+    # Since dataset is imbalanced, we use balanced accuracy instead of regular accuracy
+    # we need to round them to four decimal places to reduce clutter in the output
+    accuracy = balanced_accuracy_score(y_val, preds)
+    precision = precision_score(y_val, preds, average=None)
+    class_precisions = {f"class {i}": p for i, p in enumerate(precision)}
+    recall = recall_score(y_val, preds, average=None)
+    class_recalls = {f"class {i}": r for i, r in enumerate(recall)}
+    f1 = f1_score(y_val, preds, average=None)
+    class_f1s = {f"class {i}": f for i, f in enumerate(f1)}
 
     return {
         "accuracy": accuracy,
-        "precision": precision,
-        "recall": recall,
-        "f1": f1
+        "precision": class_precisions,
+        "recall": class_recalls,
+        "f1": class_f1s
     }
