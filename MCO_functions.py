@@ -21,6 +21,54 @@ from sklearn.metrics import (
 )
 
 
+def set_xtick_labels(ax, labels, rotation=45, ha="right"):
+    """Set categorical x tick labels from a mapping dictionary."""
+    ax.set_xticks([float(x) for x in range(0, len(labels))])
+    ax.set_xticklabels(list(labels.values()), rotation=rotation, ha=ha)
+
+
+def class_distribution_by_feature(df, col, label_map, class_label, urb_col="URB_LABEL"):
+    """Return within-class percentage distribution for a categorical feature."""
+    class_df = df[df[urb_col] == class_label]
+    dist = class_df[col].value_counts(normalize=True).sort_values(ascending=True) * 100
+
+    return pd.DataFrame(
+        {
+            "Label": [label_map.get(idx, str(idx)) for idx in dist.index],
+            "Percent": dist.values,
+        }
+    )
+
+
+def plot_single_class_distribution(
+    ax,
+    df,
+    col,
+    label_map,
+    class_label,
+    color,
+    title,
+    urb_col="URB_LABEL",
+):
+    """Plot a single class-specific horizontal percentage distribution chart."""
+    plot_df = class_distribution_by_feature(df, col, label_map, class_label, urb_col=urb_col)
+    y = np.arange(len(plot_df))
+
+    ax.barh(y, plot_df["Percent"], color=color)
+
+    for i, pct in enumerate(plot_df["Percent"]):
+        if pct >= 2:
+            ax.text(pct + 0.8, i, f"{pct:.1f}%", va="center", fontsize=8)
+
+    ax.set_yticks(y)
+    ax.set_yticklabels(plot_df["Label"], fontsize=8)
+    ax.set_xlim(0, 100)
+    ax.set_xlabel("Percentage within class (%)")
+    ax.set_title(title, fontsize=11, fontweight="bold")
+    ax.xaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.set_axisbelow(True)
+
+
 def compareChart(mode, n, cat, figwidth, figheight, urban_columns, rural_columns, title):
     # bar profile
     y = np.arange(n) # label location of categories
@@ -209,9 +257,8 @@ def track_logreg_loss_by_iteration(
         "ax": ax,
     }
 
-
+# to determine color (yellow, green red) just an aesthetic function
 def highlight_val_train_row(row, direction_map, delta_col="Val - Train"):
-    """Color only the delta cell by whether validation moved in the preferred direction."""
     metric_name = row.name
     delta = row[delta_col]
     direction = direction_map.get(metric_name, "higher")
@@ -228,7 +275,7 @@ def highlight_val_train_row(row, direction_map, delta_col="Val - Train"):
         styles[delta_idx] = f"background-color: {color}"
     return styles
 
-
+# Tuning function that runs a grid search over C, solver, class weight, and decision threshold, and returns a dataframe of results sorted by balanced accuracy and gap.
 def run_logreg_validation_grid(
     X_train,
     y_train,
@@ -238,11 +285,7 @@ def run_logreg_validation_grid(
     threshold_max=0.5,
     threshold_step=0.01,
 ):
-    """Evaluate candidate logistic-regression settings and rank by validation quality.
 
-    Thresholds are generated from threshold_min to threshold_max (inclusive)
-    using threshold_step so the search can cover finer decision cutoffs.
-    """
     if threshold_step <= 0:
         raise ValueError("threshold_step must be > 0")
     if threshold_min >= threshold_max:
