@@ -462,24 +462,323 @@ def evaluateNetwork(model, X_val, y_val):
 
     with torch.no_grad():
         # Get the output of the model for the validation set. 
-        # We place ", _" after "outputs" because the model's forward 
-        # function returns two values, and we only need the first one for evaluation.  
-        outputs, _ = model(X_val) 
-        preds = torch.argmax(outputs, dim=1)
+        scores, probabilities = model.forward(X_val, verbose=False)
+        predictions = model.predict(probabilities)
 
     # Since dataset is imbalanced, we use balanced accuracy instead of regular accuracy
-    # we need to round them to four decimal places to reduce clutter in the output
-    accuracy = balanced_accuracy_score(y_val, preds)
-    precision = precision_score(y_val, preds, average=None)
+    accuracy = balanced_accuracy_score(y_val, predictions)
+
+    precision = precision_score(y_val, predictions, average=None)
     class_precisions = {f"class {i}": p for i, p in enumerate(precision)}
-    recall = recall_score(y_val, preds, average=None)
+
+    recall = recall_score(y_val, predictions, average=None)
     class_recalls = {f"class {i}": r for i, r in enumerate(recall)}
-    f1 = f1_score(y_val, preds, average=None)
+
+    f1 = f1_score(y_val, predictions, average=None)
     class_f1s = {f"class {i}": f for i, f in enumerate(f1)}
+
+    criterion = nn.CrossEntropyLoss()
+    loss = criterion(scores, y_val)
+
+    auc_score = roc_auc_score(y_val,probabilities[:,1])
+    pr_auc = average_precision_score(y_val,probabilities[:,1])
 
     return {
         "accuracy": accuracy,
         "precision": class_precisions,
         "recall": class_recalls,
-        "f1": class_f1s
+        "f1": class_f1s,
+        "log_loss": loss,
+        "ROC_AUC": auc_score,
+        "PR_AUC": pr_auc
     }
+
+# This following lines contains the implementation of a feedforward neural network using PyTorch.
+# These contents are based off the template given in the NeuralNetwork lab activity from DLSU's STINTSY course.
+
+import torch.nn as nn
+import torch.nn.init
+from data_loader import DataLoader
+from torch import optim
+
+class NeuralNetwork(nn.Module):
+
+    def __init__(self,
+                 input_size,
+                 num_classes,
+                 list_hidden,
+                 activation='relu'):
+        """Class constructor for NeuralNetwork
+
+        Arguments:
+            input_size {int} -- Number of features in the dataset
+            num_classes {int} -- Number of classes in the dataset
+            list_hidden {list} -- List of integers representing the number of
+            units per hidden layer in the network
+            activation {str, optional} -- Type of activation function. Choices
+            include 'sigmoid', 'tanh', and 'relu'.
+        """
+        super(NeuralNetwork, self).__init__()
+
+        self.input_size = input_size
+        self.num_classes = num_classes
+        self.list_hidden = list_hidden
+        self.activation = activation
+
+    def create_network(self):
+        """Creates the layers of the neural network.
+        """
+        layers = []
+
+        # Append a torch.nn.Linear layer to the
+        # layers list with correct values for parameters in_features and
+        # out_features. This is the first layer of the network.
+        # HINT: You will use self.list_hidden here.
+        layers.append(torch.nn.Linear(in_features=self.input_size, out_features=self.list_hidden[0]))
+
+        # Append the activation layer by calling
+        # the self.get_activation() function.
+        layers.append(self.get_activation(self.activation))
+
+        # Iterate over other hidden layers just before the last layer
+        for i in range(len(self.list_hidden) - 1):
+
+            # Append a torch.nn.Linear layer to
+            # the layers list according to the values in self.list_hidden.
+            layers.append(torch.nn.Linear(in_features=self.list_hidden[i], out_features=self.list_hidden[i + 1]))
+
+            # Append the activation layer by
+            # calling the self.get_activation() function.
+            layers.append(self.get_activation(self.activation))
+
+        # Append a torch.nn.Linear layer to the
+        # layers list with correct values for parameters in_features and
+        # out_features. This is the last layer of the network.
+        layers.append(torch.nn.Linear(in_features=self.list_hidden[-1], out_features=self.num_classes))
+        
+        layers.append(nn.Softmax(dim=1))
+        self.layers = nn.Sequential(*layers)
+
+    def init_weights(self):
+        """Initializes the weights of the network. Weights of a
+        torch.nn.Linear layer should be initialized from a normal
+        distribution with mean 0 and standard deviation 0.1. Bias terms of a
+        torch.nn.Linear layer should be initialized with a constant value of 0.
+        """
+        torch.manual_seed(2)
+
+        # For each layer in the network
+        for module in self.modules():
+
+            # If it is a torch.nn.Linear layer
+            if isinstance(module, nn.Linear):
+
+                # Initialize the weights of the torch.nn.Linear layer
+                # from a normal distribution with mean 0 and standard deviation
+                # of 0.1.
+                nn.init.normal_(module.weight, mean=0, std=0.1)
+
+                # Initialize the bias terms of the torch.nn.Linear layer
+                # with a constant value of 0.
+                nn.init.constant_(module.bias, 0)
+
+    def get_activation(self,
+                       mode='sigmoid'):
+        """Returns the torch.nn layer for the activation function.
+
+        Arguments:
+            mode {str, optional} -- Type of activation function. Choices
+            include 'sigmoid', 'tanh', and 'relu'.
+
+        Returns:
+            torch.nn -- torch.nn layer representing the activation function.
+        """
+        activation = nn.Sigmoid()
+
+        if mode == 'tanh':
+            activation = nn.Tanh()
+
+        elif mode == 'relu':
+            activation = nn.ReLU(inplace=True)
+
+        return activation
+
+    def forward_manual(self,
+                       x,
+                       verbose=False):
+        """Forward propagation of the model, implemented manually.
+
+        Arguments:
+            x {torch.Tensor} -- A Tensor of shape (N, D) representing input
+            features to the model.
+            verbose {bool, optional} -- Indicates if the function prints the
+            output or not.
+
+        Returns:
+            torch.Tensor, torch.Tensor -- A Tensor of shape (N, C) representing
+            the output of the final linear layer in the network. A Tensor of
+            shape (N, C) representing the probabilities of each class given by
+            the softmax function.
+        """
+
+        # For each layer in the network
+        for i in range(len(self.layers) - 1):
+
+            # If it is a torch.nn.Linear layer
+            if isinstance(self.layers[i], nn.Linear):
+
+                # Compute the result of the linear layer. Do not forget
+                # to add the bias term. Assign the result to x.
+                x = torch.matmul(x, self.layers[i].weight.t()) + self.layers[i].bias
+
+            # If it is another function
+            else:
+                # Call the forward() function of the layer
+                # and return the result to x.
+                x = self.layers[i](x)
+
+            if verbose:
+                # Print the output of the layer
+                print('Output of layer ' + str(i))
+                print(x, '\n')
+
+        # Apply the softmax function
+        probabilities = self.layers[-1](x)
+
+        if verbose:
+            print('Output of layer ' + str(len(self.layers) - 1))
+            print(probabilities, '\n')
+
+        return x, probabilities
+
+    def forward(self,
+                x,
+                verbose=False):
+        """Forward propagation of the model, implemented using PyTorch.
+
+        Arguments:
+            x {torch.Tensor} -- A Tensor of shape (N, D) representing input
+            features to the model.
+            verbose {bool, optional} -- Indicates if the function prints the
+            output or not.
+
+        Returns:
+            torch.Tensor, torch.Tensor -- A Tensor of shape (N, C) representing
+            the output of the final linear layer in the network. A Tensor of
+            shape (N, C) representing the probabilities of each class given by
+            the softmax function.
+        """
+
+        # For each layer in the network
+        for i in range(len(self.layers) - 1):
+
+            # Call the forward() function of the layer
+            # and return the result to x.
+            x = self.layers[i](x)
+
+            if verbose:
+                # Print the output of the layer
+                print('Output of layer ' + str(i))
+                print(x, '\n')
+
+        # Apply the softmax function
+        probabilities = self.layers[-1](x)
+
+        if verbose:
+            print('Output of layer ' + str(len(self.layers) - 1))
+            print(probabilities, '\n')
+
+        return x, probabilities
+
+    def predict(self,
+                probabilities):
+        """Returns the index of the class with the highest probability.
+
+        Arguments:
+            probabilities {torch.Tensor} -- A Tensor of shape (N, C)
+            representing the probabilities of N instances for C classes.
+
+        Returns:
+            torch.Tensor -- A Tensor of shape (N, ) contaning the indices of
+            the class with the highest probability for N instances.
+        """
+
+        # Return the index of the class with the highest probability
+        return torch.argmax(probabilities, dim=1)
+
+# The following contents are based off the template given in the NeuralNetwork lab activity from DLSU's STINTSY course.
+
+import numpy as np
+
+class DataLoader(object):
+
+    def __init__(self, X, y, batch_size):
+        """Class constructor for DataLoader
+
+        Arguments:
+            X {np.ndarray} -- A numpy array of shape (N, D) containing the
+            data; there are N samples each of dimension D.
+            y {np.ndarray} -- A numpy array of shape (N, 1) containing the
+            ground truth values.
+            batch_size {int} -- An integer representing the number of instances
+            per batch.
+        """
+        self.X = X
+        self.y = y
+        self.batch_size = batch_size
+
+        self.indices = np.array([i for i in range(self.X.shape[0])])
+        np.random.seed(1)
+
+    def shuffle(self):
+        """Shuffles the indices in self.indices.
+        """
+
+        # Use np.random.shuffle() to shuffles the indices in self.indices
+        np.random.shuffle(self.indices)
+
+    def get_batch(self, mode='train'):
+        """Returns self.X and self.y divided into different batches of size
+        self.batch_size according to the shuffled self.indices.
+
+        Arguments:
+            mode {str} -- A string which determines the mode of the model. This
+            can either be `train` or `test`.
+
+        Returns:
+            list, list -- List of np.ndarray containing the data divided into
+            different batches of size self.batch_size; List of np.ndarray
+            containing the ground truth labels divided into different batches
+            of size self.batch_size
+        """
+
+        X_batch = []
+        y_batch = []
+
+        # If mode is set to `train`, shuffle the indices first using
+        # self.shuffle().
+        if mode == 'train':
+            self.shuffle()
+        elif mode == 'test':
+            self.indices = np.array([i for i in range(self.X.shape[0])])
+
+        # The loop that will iterate from 0 to the number of instances with
+        # step equal to self.batch_size
+        for i in range(0, len(self.indices), self.batch_size):
+
+            # Check if we can still get self.batch_size from the
+            # remaining indices starting from index i. Edit the condition
+            # below.
+            if i + self.batch_size <= len(self.indices):
+                indices = self.indices[i:i + self.batch_size]
+
+            # Else, just get the remaining indices from index i until the
+            # last element in the list. Edit the statement inside the else
+            # block.
+            else:
+                indices = self.indices[i:]
+
+            X_batch.append(self.X[indices])
+            y_batch.append(self.y[indices])
+
+        return X_batch, y_batch
