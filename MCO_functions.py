@@ -8,8 +8,6 @@ from typing import Literal
 from IPython.display import display
 from sklearn.linear_model import LogisticRegression
 from sklearn.exceptions import ConvergenceWarning
-from neural_network import NeuralNetwork
-from data_loader import DataLoader
 import torch
 from torch import optim
 import torch.nn as nn
@@ -387,7 +385,7 @@ def run_logreg_validation_grid(
     candidate_df = candidate_df.drop(columns=["Gap_For_Ranking"])
     return candidate_df
 
-def trainNetwork(network: NeuralNetwork, data_loader: DataLoader, 
+def trainNetwork(network, data_loader, 
         optimizer: optim.Optimizer, criterion: nn.CrossEntropyLoss, max_epochs=300):
     e = 0
     is_converged = False
@@ -466,7 +464,7 @@ def evaluateNetwork(model, X_val, y_val):
         predictions = model.predict(probabilities)
 
     # Since dataset is imbalanced, we use balanced accuracy instead of regular accuracy
-    accuracy = balanced_accuracy_score(y_val, predictions)
+    balanced_accuracy = balanced_accuracy_score(y_val, predictions)
 
     precision = precision_score(y_val, predictions, average=None)
     class_precisions = {f"class {i}": p for i, p in enumerate(precision)}
@@ -483,14 +481,17 @@ def evaluateNetwork(model, X_val, y_val):
     auc_score = roc_auc_score(y_val,probabilities[:,1])
     pr_auc = average_precision_score(y_val,probabilities[:,1])
 
+    cm = confusion_matrix(y_val, predictions)
+
     return {
-        "accuracy": accuracy,
+        "balanced_accuracy": balanced_accuracy,
         "precision": class_precisions,
         "recall": class_recalls,
         "f1": class_f1s,
         "log_loss": loss,
         "ROC_AUC": auc_score,
-        "PR_AUC": pr_auc
+        "PR_AUC": pr_auc,
+        "confusion_matrix": cm
     }
 
 # This following lines contains the implementation of a feedforward neural network using PyTorch.
@@ -498,7 +499,6 @@ def evaluateNetwork(model, X_val, y_val):
 
 import torch.nn as nn
 import torch.nn.init
-from data_loader import DataLoader
 from torch import optim
 
 class NeuralNetwork(nn.Module):
