@@ -121,11 +121,27 @@ def class_accuracy_from_cm(cm):
 def build_metric_series(y_true, y_pred, y_proba, cm, metric_order):
     """Build a metrics series in the exact order used by notebook comparison tables."""
     rural_acc, urban_acc = class_accuracy_from_cm(cm)
+    prec, rec, f1, _ = precision_recall_fscore_support(
+        y_true,
+        y_pred,
+        labels=[0, 1],
+        zero_division=0,
+        average=None,
+    )
+    prec = np.asarray(prec)
+    rec = np.asarray(rec)
+    f1 = np.asarray(f1)
     metric_map = {
         "Accuracy": accuracy_score(y_true, y_pred),
         "Balanced Acc": balanced_accuracy_score(y_true, y_pred),
         "Rural Accuracy": rural_acc,
         "Urban Accuracy": urban_acc,
+        "Rural Precision": float(prec[0]),
+        "Rural Recall": float(rec[0]),
+        "Rural F1": float(f1[0]),
+        "Urban Precision": float(prec[1]),
+        "Urban Recall": float(rec[1]),
+        "Urban F1": float(f1[1]),
         "ROC-AUC": roc_auc_score(y_true, y_proba),
         "PR-AUC": average_precision_score(y_true, y_proba),
         "Log Loss": log_loss(y_true, y_proba),
@@ -172,10 +188,10 @@ def report_binary_metrics(
 
     class_metrics_df = pd.DataFrame(
         {
-            "Rural (0)": [rural_acc, prec[0], rec[0], f1[0]],
-            "Urban (1)": [urban_acc, prec[1], rec[1], f1[1]],
+            "Rural (0)": [prec[0], rec[0], f1[0]],
+            "Urban (1)": [prec[1], rec[1], f1[1]],
         },
-        index=["Accuracy", "Precision", "Recall", "F1-score"],
+        index=["Precision", "Recall", "F1-score"],
     )
 
     print("\nPer-Class Metrics")
